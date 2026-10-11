@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>포고 지역 한정 도감</title>
+  <meta name="description" content="포켓몬 GO 지역 한정 포켓몬을 권역 벤다이어그램으로 보고, 체크리스트와 검색어를 만드는 도구">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="app">
+    <aside class="panel">
+      <header class="panel-head">
+        <h1>포고 지역 한정 도감</h1>
+        <nav class="tabs" role="tablist">
+          <button class="tab active" data-tab="place">위치 검색</button>
+          <button class="tab" data-tab="dex">체크리스트 <span id="progress-badge" class="badge"></span></button>
+        </nav>
+      </header>
+
+      <!-- 위치 검색 -->
+      <section class="tab-body active" id="tab-place">
+        <form id="place-form" class="row">
+          <input id="place-input" type="text" placeholder="지명 또는 '37.56, 126.97'" autocomplete="off">
+          <button type="submit">검색</button>
+          <button type="button" id="locate-btn" title="현재 위치">📍</button>
+        </form>
+        <ul id="geo-results" class="geo-results"></ul>
+        <div id="place-info" class="place-info">지명이나 좌표를 입력하면 그곳에서 나오는 포켓몬을 다이어그램에 강조해 보여줍니다.</div>
+        <ul id="place-list" class="poke-list"></ul>
+        <div id="place-query"></div>
+      </section>
+
+      <!-- 체크리스트 -->
+      <section class="tab-body" id="tab-dex">
+        <div class="progress"><div id="progress-bar"></div></div>
+        <p id="progress-text" class="hint"></p>
+        <div class="row">
+          <input id="dex-filter" type="search" placeholder="이름·번호·지역 검색">
+          <select id="dex-own">
+            <option value="all">전체</option>
+            <option value="missing">일반 안 잡음</option>
+            <option value="owned">일반 잡음</option>
+            <option value="shiny-missing">이로치 안 잡음</option>
+            <option value="shiny">이로치 잡음</option>
+          </select>
+        </div>
+        <div class="row">
+          <select id="dex-page">
+            <option value="all">모든 분류</option>
+            <option value="wild">야생</option>
+            <option value="raid">레이드</option>
+            <option value="unown">안농</option>
+          </select>
+        </div>
+        <label class="check"><input type="checkbox" id="show-evo" checked> 진화형 포함</label>
+        <ul id="dex-list" class="poke-list"></ul>
+        <div id="dex-query"></div>
+        <div class="row data-actions">
+          <button id="reset-btn" type="button" class="danger">초기화</button>
+        </div>
+      </section>
+
+      <footer class="panel-foot">
+        <div class="io-group">
+          <button type="button" class="io-btn" id="load-btn">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V4m0 0L7.5 8.5M12 4l4.5 4.5M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+            불러오기
+          </button>
+          <button type="button" class="io-btn accent" id="save-btn">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+            저장하기
+          </button>
+        </div>
+        <div class="io-group">
+          <label class="io-btn" id="open-file-btn">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M12 17v-6m0 0-2.5 2.5M12 11l2.5 2.5"/></svg>
+            파일 열기
+            <input id="import-input" type="file" accept="application/json,.json" hidden>
+          </label>
+          <button type="button" class="io-btn accent2" id="export-btn">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M10.5 12.5 9 14.5l1.5 2M13.5 12.5l1.5 2-1.5 2"/></svg>
+            파일 저장
+          </button>
+        </div>
+        <p id="io-status" class="io-status"></p>
+      </footer>
+    </aside>
+
+    <main class="board">
+      <div class="board-head">
+        <nav class="page-tabs" role="tablist">
+          <button type="button" class="page-tab active" data-page="wild">야생</button>
+          <button type="button" class="page-tab" data-page="raid">레이드</button>
+          <button type="button" class="page-tab" data-page="unown">안농</button>
+        </nav>
+        <div class="board-tools">
+          <button type="button" id="clear-point" hidden>강조 해제</button>
+        </div>
+      </div>
+      <p id="board-status" class="hint"></p>
+
+      <!-- 야생 -->
+      <div class="page" data-page="wild">
+        <h2 class="section-title first">권역별 지역 한정 포켓몬</h2>
+        <div class="venn">
+          <div class="ell ell-am" data-zone-ell="AM"></div>
+          <div class="ell ell-em" data-zone-ell="EM"></div>
+          <div class="ell ell-ap" data-zone-ell="AP"></div>
+          <div class="cell c1" data-zone="AM"><h3>아메리카</h3><div class="chips"></div></div>
+          <div class="cell c2 overlap" data-zone="AM_EM"><h3>아메리카 + 아프리카</h3><div class="chips"></div></div>
+          <div class="cell c3" data-zone="EM"><h3>유럽·중동·아프리카</h3><div class="chips"></div></div>
+          <div class="cell c4 overlap" data-zone="EM_AP"><h3>유럽·아시아·오세아니아</h3><div class="chips"></div></div>
+          <div class="cell c5" data-zone="AP"><h3>아시아·태평양</h3><div class="chips"></div></div>
+        </div>
+
+        <h2 class="section-title">지역마다 모습이 다른 포켓몬</h2>
+        <p class="hint">어디서나 나오지만 지역에 따라 폼이 달라요.</p>
+        <div class="venn slim">
+          <div class="ell ell-am" data-zone-ell="F_AM"></div>
+          <div class="ell ell-em" data-zone-ell="F_EM"></div>
+          <div class="ell ell-ap" data-zone-ell="F_AP"></div>
+          <div class="cell c1" data-zone="F_AM"><h3>아메리카</h3><div class="chips"></div></div>
+          <div class="cell c3" data-zone="F_EM"><h3>유럽·중동·아프리카</h3><div class="chips"></div></div>
+          <div class="cell c5" data-zone="F_AP"><h3>아시아·태평양</h3><div class="chips"></div></div>
+        </div>
+        <div class="boxes">
+          <section class="box split">
+            <h3>반구·섬 지역 <small>경도 0° 기준</small></h3>
+            <div class="split-cols three">
+              <div data-zone="F_WEST"><h4>서반구</h4><div class="chips"></div></div>
+              <div data-zone="F_ISLAND"><h4>섬 지역</h4><div class="chips"></div></div>
+              <div data-zone="F_EAST"><h4>동반구</h4><div class="chips"></div></div>
+            </div>
+          </section>
+        </div>
+
+        <h2 class="section-title">그 밖의 지역 한정</h2>
+        <div class="boxes">
+          <section class="box split">
+            <h3>동·서반구 <small>경도 0° 기준</small></h3>
+            <div class="split-cols">
+              <div data-zone="WEST"><h4>서반구</h4><div class="chips"></div></div>
+              <div data-zone="EAST"><h4>동반구</h4><div class="chips"></div></div>
+            </div>
+          </section>
+          <section class="box split">
+            <h3>위도대</h3>
+            <div class="split-cols three">
+              <div data-zone="FAR_NORTH"><h4>극북 지역</h4><div class="chips"></div></div>
+              <div data-zone="TROPICS"><h4>열대</h4><div class="chips"></div></div>
+              <div data-zone="SOUTH"><h4>남반구</h4><div class="chips"></div></div>
+            </div>
+          </section>
+          <section class="box" data-zone="BIOME">
+            <h3>지형(바이옴) 기준 <small>국가가 아니라 사막·숲·해변 같은 지형에서 나옴</small></h3>
+            <div class="chips"></div>
+          </section>
+        </div>
+      </div>
+
+      <!-- 레이드 -->
+      <!-- 안농 -->
+      <div class="page" data-page="unown" hidden>
+        <h2 class="section-title first">안농</h2>
+        <p class="hint">지역에 상관없이 나와요. 글자 폼 28가지를 모두 모아 보세요. <span id="unown-progress"></span></p>
+        <div class="boxes">
+          <section class="box" data-zone="UNOWN"><div class="chips"></div></section>
+        </div>
+      </div>
+
+      <div class="page" data-page="raid" hidden>
+        <h2 class="section-title first">호수의 삼신</h2>
+        <p class="hint">권역마다 한 마리씩 레이드에 나와요.</p>
+        <div class="venn slim">
+          <div class="ell ell-am" data-zone-ell="AM"></div>
+          <div class="ell ell-em" data-zone-ell="EM"></div>
+          <div class="ell ell-ap" data-zone-ell="AP"></div>
+          <div class="cell c1" data-zone="AM"><h3>아메리카</h3><div class="chips"></div></div>
+          <div class="cell c3" data-zone="EM"><h3>유럽·중동·아프리카·인도</h3><div class="chips"></div></div>
+          <div class="cell c5" data-zone="AP"><h3>아시아·태평양</h3><div class="chips"></div></div>
+        </div>
+
+        <h2 class="section-title">팔데아 켄타로스</h2>
+        <p class="hint">야생에는 나오지 않고 레이드와 알로만 얻을 수 있어요.</p>
+        <div class="boxes">
+          <section class="box split">
+            <h3>반구·이베리아 반도 <small>경도 0° 기준</small></h3>
+            <div class="split-cols three">
+              <div data-zone="PT_WEST"><h4>서반구</h4><div class="chips"></div></div>
+              <div data-zone="PT_IBERIA"><h4>이베리아 반도</h4><div class="chips"></div></div>
+              <div data-zone="PT_EAST"><h4>동반구</h4><div class="chips"></div></div>
+            </div>
+          </section>
+        </div>
+
+        <h2 class="section-title">울트라비스트</h2>
+        <p class="hint">반구에 따라 레이드에 나오는 종류가 달라요.</p>
+        <div class="boxes">
+          <section class="box split">
+            <h3>동·서반구 <small>경도 0° 기준</small></h3>
+            <div class="split-cols">
+              <div data-zone="WEST"><h4>서반구</h4><div class="chips"></div></div>
+              <div data-zone="EAST"><h4>동반구</h4><div class="chips"></div></div>
+            </div>
+          </section>
+          <section class="box split">
+            <h3>남·북반구 <small>적도 기준</small></h3>
+            <div class="split-cols">
+              <div data-zone="NORTH"><h4>북반구</h4><div class="chips"></div></div>
+              <div data-zone="SOUTH"><h4>남반구</h4><div class="chips"></div></div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <template id="query-tpl">
+    <div class="query">
+      <div class="query-head">
+        <strong>포켓몬 GO 검색어</strong>
+        <select class="q-mode">
+          <option value="dex">도감번호</option>
+          <option value="name">한글 이름</option>
+        </select>
+      </div>
+      <label class="check">대상
+        <select class="q-owned">
+          <option value="">전체</option>
+          <option value="caught">일반 잡은 것만</option>
+          <option value="shiny">이로치 잡은 것만</option>
+        </select>
+      </label>
+      <label class="check"><input type="checkbox" class="q-evo"> 진화형 포함</label>
+      <input type="text" class="q-suffix" placeholder="추가 조건 (선택) 예: &4*">
+      <div class="q-out-row">
+        <code class="q-out"></code>
+        <button type="button" class="q-copy">복사</button>
+      </div>
+      <p class="hint q-note"></p>
+    </div>
+  </template>
+
+  <script src="js/areas.js"></script>
+  <script src="js/pokemon.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
